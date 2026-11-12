@@ -1,20 +1,12 @@
-# Virtual environment
 .venv/
 venv/
 ENV/
-
-# Environment variables & secrets (NEVER COMMIT THESE)
 .env
 .env.local
 .env.*.local
-
-# Python byte-compiled files & caches
 __pycache__/
 *.py[cod]
-*$py.class
 .pytest_cache/
-
-# IDE and OS files
 .vscode/
 .idea/
 .DS_Store
