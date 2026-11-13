@@ -9,3 +9,4 @@ langchain-text-splitters==0.3.6
 psycopg[binary]==3.2.5
 pgvector==0.3.6
 fastembed==0.6.0
+google-genai==1.14.0

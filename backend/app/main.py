@@ -1,6 +1,9 @@
-from fastapi import FastAPI
+from typing import List
+from fastapi import FastAPI, HTTPException
 from app.config import settings
-from app.schemas import HealthResponse
+from app.db import list_indexed_documents
+from app.rag import generate_grounded_answer, retrieve_context
+from app.schemas import AskRequest, AskResponse, DocumentInfo, HealthResponse
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -14,10 +17,38 @@ app = FastAPI(
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 def health_check() -> HealthResponse:
-    """Verify that the API server is running and responsive."""
     return HealthResponse(
         status="ok",
         app_name=settings.APP_NAME,
         version=settings.APP_VERSION,
         environment=settings.APP_ENV,
     )
+
+
+@app.get("/documents", response_model=List[DocumentInfo], tags=["Filings"])
+def get_documents() -> List[DocumentInfo]:
+    """List all SEC filings currently indexed in the vector database."""
+    try:
+        docs = list_indexed_documents()
+        return [DocumentInfo(**d) for d in docs]
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}")
+
+
+@app.post("/ask", response_model=AskResponse, tags=["Research"])
+def ask_question(payload: AskRequest) -> AskResponse:
+    """Retrieve relevant 10-K passages and generate a cited answer."""
+    try:
+        chunks = retrieve_context(payload.question, ticker=payload.ticker, top_k=4)
+        result = generate_grounded_answer(payload.question, chunks)
+        return AskResponse(
+            question=payload.question,
+            answer=result["answer"],
+            route_used="rag",
+            insufficient_evidence=result["insufficient_evidence"],
+            citations=result["citations"],
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Model or retrieval error: {exc}")

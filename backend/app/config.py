@@ -14,7 +14,7 @@ class Settings:
     APP_VERSION: str = "0.1.0"
     APP_ENV: str = os.getenv("APP_ENV", "development")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
     EMBEDDING_DIM: int = 384
