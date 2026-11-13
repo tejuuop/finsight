@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinSight — Agentic Financial Research</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+          <span>📊 FinSight</span>
+          <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            SEC 10-K RAG + LangGraph MVP
+          </span>
+        </h1>
+        <p class="text-xs text-slate-400 mt-0.5">
+          Grounded financial filing intelligence with pgvector &amp; deterministic Python calculations
+        </p>
+      </div>
+      <a href="/docs" target="_blank" class="text-xs text-indigo-400 hover:text-indigo-300 border border-slate-700 rounded-lg px-3 py-1.5">
+        API Docs (/docs) ↗
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-5xl mx-auto w-full px-4 py-8 flex-1 space-y-6">
+    <!-- Indexed Documents Bar -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Indexed SEC 10-K Filings</h2>
+          <div id="doc-list" class="flex flex-wrap gap-2 mt-2 text-xs text-slate-300">
+            <span class="text-slate-500">Loading indexed filings...</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="ticker-select" class="text-xs text-slate-400">Company Filter:</label>
+          <select id="ticker-select" class="bg-slate-800 border border-slate-700 text-slate-100 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500">
+            <option value="">All Companies (AAPL &amp; MSFT)</option>
+            <option value="AAPL">Apple Inc. (AAPL — FY2024 10-K)</option>
+            <option value="MSFT">Microsoft Corp. (MSFT — FY2024 10-K)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Question Input Box -->
+    <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+      <div>
+        <label for="question-input" class="block text-sm font-medium text-slate-200 mb-2">
+          Ask a question about the filings or request a financial calculation
+        </label>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input
+            id="question-input"
+            type="text"
+            maxlength="500"
+            placeholder="e.g., What supply chain risks does Apple highlight?"
+            class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+          />
+          <button
+            id="ask-btn"
+            onclick="submitQuestion()"
+            class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-sm px-5 py-2.5 rounded-lg transition"
+          >
+            Ask FinSight
+          </button>
+        </div>
+      </div>
+
+      <!-- Sample Questions -->
+      <div class="space-y-1.5">
+        <span class="text-xs text-slate-400">Try an example:</span>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="setExample('What supply chain and regulatory risks does Apple highlight?', 'AAPL')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700">
+            🔍 Apple Supply Chain &amp; Regulatory Risks (RAG)
+          </button>
+          <button onclick="setExample('What cybersecurity and AI risks does Microsoft highlight?', 'MSFT')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700">
+            🔍 Microsoft AI &amp; Cybersecurity Risks (RAG)
+          </button>
+          <button onclick="setExample('Calculate the change in revenue for Microsoft between 2023 and 2024', 'MSFT')" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700">
+            🧮 MSFT Revenue Growth 2023–2024 (Calculator Tool)
+          </button>
+          <button onclick="setExample('What was Apple operating margin in 2024 vs 2023?', 'AAPL')" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700">
+            🧮 AAPL Operating Margin Delta (Calculator Tool)
+          </button>
+          <button onclick="setExample('How many Cybertrucks did Tesla deliver in 2024?', '')" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1.5 rounded-lg border border-slate-700">
+            🛡️ Unindexed Company Refusal Test
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Loading Indicator -->
+    <div id="loading-box" class="hidden bg-slate-900 border border-slate-800 rounded-xl p-6 text-center space-y-2">
+      <div class="inline-block w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-sm text-slate-300">Running LangGraph workflow (retrieving vectors / executing tools)...</p>
+    </div>
+
+    <!-- Error Box -->
+    <div id="error-box" class="hidden bg-red-950/50 border border-red-800 text-red-200 rounded-xl p-4 text-sm"></div>
+
+    <!-- Result Section -->
+    <section id="result-box" class="hidden space-y-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+          <h3 class="text-sm font-semibold text-white">FinSight Research Response</h3>
+          <div class="flex items-center gap-2">
+            <span id="route-badge" class="text-xs font-medium px-2.5 py-0.5 rounded-full"></span>
+            <span id="evidence-badge" class="text-xs font-medium px-2.5 py-0.5 rounded-full"></span>
+          </div>
+        </div>
+        <div id="answer-text" class="text-sm text-slate-200 leading-relaxed whitespace-pre-line"></div>
+        <p id="disclaimer-text" class="text-xs text-slate-500 pt-2 border-t border-slate-800/80 italic"></p>
+      </div>
+
+      <!-- Citations Section -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+        <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Supporting Filing Citations &amp; Retrieved Passages
+        </h4>
+        <div id="citations-list" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const API_BASE = window.location.origin.includes("localhost:") || window.location.origin.includes("127.0.0.1:")
+      ? "http://127.0.0.1:8000"
+      : window.location.origin;
+
+    async function loadDocuments() {
+      const docList = document.getElementById("doc-list");
+      try {
+        const res = await fetch(`${API_BASE}/documents`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const docs = await res.json();
+        docList.innerHTML = docs.map(d =>
+          `<span class="bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md">
+            📄 <strong>${d.ticker}</strong> (${d.company}) — ${d.document_name} (${d.chunk_count} chunks)
+          </span>`
+        ).join("");
+      } catch (err) {
+        docList.innerHTML = `<span class="text-red-400">Could not load documents (${err.message})</span>`;
+      }
+    }
+
+    function setExample(question, ticker) {
+      document.getElementById("question-input").value = question;
+      document.getElementById("ticker-select").value = ticker;
+      submitQuestion();
+    }
+
+    async function submitQuestion() {
+      const qInput = document.getElementById("question-input");
+      const tickerSelect = document.getElementById("ticker-select");
+      const btn = document.getElementById("ask-btn");
+      const loadingBox = document.getElementById("loading-box");
+      const errorBox = document.getElementById("error-box");
+      const resultBox = document.getElementById("result-box");
+
+      const question = qInput.value.trim();
+      if (question.length < 3) {
+        errorBox.textContent = "Please enter a question of at least 3 characters.";
+        errorBox.classList.remove("hidden");
+        return;
+      }
+
+      errorBox.classList.add("hidden");
+      resultBox.classList.add("hidden");
+      loadingBox.classList.remove("hidden");
+      btn.disabled = true;
+
+      try {
+        const payload = { question };
+        if (tickerSelect.value) payload.ticker = tickerSelect.value;
+
+        const res = await fetch(`${API_BASE}/ask`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || `Server error (HTTP ${res.status})`);
+        }
+
+        renderResult(data);
+      } catch (err) {
+        errorBox.textContent = `Error: ${err.message}`;
+        errorBox.classList.remove("hidden");
+      } finally {
+        loadingBox.classList.add("hidden");
+        btn.disabled = false;
+      }
+    }
+
+    function renderResult(data) {
+      const resultBox = document.getElementById("result-box");
+      const routeBadge = document.getElementById("route-badge");
+      const evidenceBadge = document.getElementById("evidence-badge");
+      const answerText = document.getElementById("answer-text");
+      const disclaimerText = document.getElementById("disclaimer-text");
+      const citationsList = document.getElementById("citations-list");
+
+      if (data.route_used === "calculator") {
+        routeBadge.textContent = "🧮 Route: Deterministic Python Calculator";
+        routeBadge.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+      } else {
+        routeBadge.textContent = "🔍 Route: Vector RAG + Gemini";
+        routeBadge.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30";
+      }
+
+      if (data.insufficient_evidence) {
+        evidenceBadge.textContent = "⚠️ Insufficient Evidence";
+        evidenceBadge.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30";
+      } else {
+        evidenceBadge.textContent = "✅ Grounded in Filings";
+        evidenceBadge.className = "text-xs font-medium px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30";
+      }
+
+      answerText.textContent = data.answer;
+      disclaimerText.textContent = data.disclaimer;
+
+      if (!data.citations || data.citations.length === 0) {
+        citationsList.innerHTML = `<p class="text-xs text-slate-500 col-span-2">No supporting passages cited for this query.</p>`;
+      } else {
+        citationsList.innerHTML = data.citations.map(c => `
+          <div class="bg-slate-950 border border-slate-800 rounded-lg p-3.5 space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-semibold text-indigo-300">[Source ${c.source_id}] ${c.ticker} — ${c.section}</span>
+              <span class="text-slate-400">Page ${c.page_number} · sim ${c.similarity}</span>
+            </div>
+            <p class="text-xs text-slate-400">${c.document_name} (${c.year})</p>
+            <p class="text-xs text-slate-300 bg-slate-900/90 p-2 rounded border border-slate-800/80 font-mono leading-relaxed">${c.excerpt}</p>
+          </div>
+        `).join("");
+      }
+
+      resultBox.classList.remove("hidden");
+    }
+
+    document.getElementById("question-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submitQuestion();
+    });
+
+    loadDocuments();
+  </script>
+</body>
+</html>

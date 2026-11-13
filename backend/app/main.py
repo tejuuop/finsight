@@ -1,9 +1,14 @@
+from pathlib import Path
 from typing import List
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from app.config import settings
 from app.db import list_indexed_documents
 from app.graph import run_workflow
 from app.schemas import AskRequest, AskResponse, DocumentInfo, HealthResponse
+
+FRONTEND_HTML = Path(__file__).resolve().parents[2] / "frontend" / "index.html"
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -13,6 +18,22 @@ app = FastAPI(
         "Educational prototype — not financial advice."
     ),
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/", include_in_schema=False)
+def serve_ui():
+    """Serve the minimal web UI at the root URL."""
+    if FRONTEND_HTML.exists():
+        return FileResponse(FRONTEND_HTML)
+    return {"message": "FinSight API running. Visit /docs for OpenAPI documentation."}
 
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
