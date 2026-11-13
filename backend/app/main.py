@@ -2,7 +2,7 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 from app.config import settings
 from app.db import list_indexed_documents
-from app.rag import generate_grounded_answer, retrieve_context
+from app.graph import run_workflow
 from app.schemas import AskRequest, AskResponse, DocumentInfo, HealthResponse
 
 app = FastAPI(
@@ -37,18 +37,17 @@ def get_documents() -> List[DocumentInfo]:
 
 @app.post("/ask", response_model=AskResponse, tags=["Research"])
 def ask_question(payload: AskRequest) -> AskResponse:
-    """Retrieve relevant 10-K passages and generate a cited answer."""
+    """Run the LangGraph workflow (routing between RAG and deterministic calculator)."""
     try:
-        chunks = retrieve_context(payload.question, ticker=payload.ticker, top_k=4)
-        result = generate_grounded_answer(payload.question, chunks)
+        result = run_workflow(payload.question, ticker=payload.ticker)
         return AskResponse(
             question=payload.question,
             answer=result["answer"],
-            route_used="rag",
+            route_used=result["route_used"],
             insufficient_evidence=result["insufficient_evidence"],
             citations=result["citations"],
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Model or retrieval error: {exc}")
+        raise HTTPException(status_code=502, detail=f"Workflow error: {exc}")
